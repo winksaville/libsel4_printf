@@ -1,0 +1,15 @@
+#
+# Copyright 2015, Wink Saville
+#
+# This software may be distributed and modified according to the terms of
+# the BSD 2-Clause license. Note that NO WARRANTY is provided.
+# See "LICENSE_BSD2.txt" for details.
+#
+
+menuconfig LIB_SEL4_PRINTF
+    bool "Build sel4 printf library"
+    default n
+    select LIB_SEL4_PUTCHAR
+    select LIB_SEL4
+    help
+        "Build the sel4 printf library which defines libsel4_printf"
