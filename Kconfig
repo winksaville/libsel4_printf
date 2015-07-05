@@ -10,6 +10,5 @@ menuconfig LIB_SEL4_PRINTF
     bool "Build sel4 printf library"
     default n
     select LIB_SEL4_PUTCHAR
-    select LIB_SEL4
     help
         "Build the sel4 printf library which defines libsel4_printf"
