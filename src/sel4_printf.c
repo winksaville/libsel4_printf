@@ -8,10 +8,10 @@
  * @TAG(GD_GPL)
  */
 
-#include <sel4_types.h>
-#include <sel4_vargs.h>
-#include <sel4_putchar.h>
-#include <sel4_printf.h>
+#include <sel4/types.h>
+#include <sel4/vargs.h>
+#include <sel4/putchar.h>
+#include <sel4/printf.h>
 
 static seL4_Uint32
 print_string(const char *s)
