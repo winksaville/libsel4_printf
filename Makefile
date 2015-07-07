@@ -6,7 +6,7 @@
 # See "LICENSE_BSD2.txt" for details.
 
 # Targets
-TARGETS := libsel4_printf.a
+TARGETS := libsel4printf.a
 
 # Source files required to build the target
 CFILES   := src/sel4_printf.c
@@ -14,7 +14,7 @@ CFILES   := src/sel4_printf.c
 ASMFILES :=
 
 # Libraries we need
-LIBS := sel4 sel4_putchar
+LIBS := sel4 sel4putchar
 
 # Header files defined here that need to be staged
 HDRFILES := $(SOURCE_DIR)/include/*.h
