@@ -16,7 +16,7 @@
 
 #else
 
-#include <sel4_printf.h>
+#include <sel4/printf.h>
 
 /**
  * Print a formated string to a "terminal". This supports a
