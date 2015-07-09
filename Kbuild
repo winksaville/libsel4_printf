@@ -7,4 +7,4 @@
 #
 
 libs-$(CONFIG_LIB_SEL4_PRINTF) += libsel4printf
-libsel4printf: common libsel4 libsel4putchar
+libsel4printf: common libsel4
