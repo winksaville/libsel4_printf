@@ -1,226 +1,229 @@
 /*
- * Copyright 2014, General Dynamics C4 Systems
+ * copyright 2015, Wink Saville
  *
- * This software may be distributed and modified according to the terms of
- * the GNU General Public License version 2. Note that NO WARRANTY is provided.
- * See "LICENSE_GPLv2.txt" for details.
- *
- * @TAG(GD_GPL)
+ * this software may be distributed and modified according to the terms of
+ * the bsd 2-clause license. note that no warranty is provided.
+ * see "license_bsd2.txt" for details.
  */
 
-#include <sel4/types.h>
-#include <sel4/vargs.h>
-#include <sel4/putchar.h>
+#include <sel4/simple_types.h>
+#include <sel4/string.h>
 #include <sel4/printf.h>
+#include <sel4/putchar.h>
+#include <sel4/vargs.h>
+#include <sel4/debug_assert.h>
 
-static seL4_Uint32
-print_string(const char *s)
-{
-    seL4_Uint32 n;
+#define NO_LEADING_0 seL4_False
+#define RADIX16_LEADING_0 seL4_True
 
-    for (n = 0; *s; s++, n++) {
-        seL4_PutChar(*s);
-    }
-
-    return n;
-}
-
-static seL4_Uint32
-xdiv(seL4_Uint32 x, seL4_Uint32 denom)
-{
-    switch (denom) {
-    case 16:
-        return x / 16;
-    case 10:
-        return x / 10;
-    default:
-        return 0;
-    }
-}
-
-static seL4_Uint32
-xmod(seL4_Uint32 x, seL4_Uint32 denom)
-{
-    switch (denom) {
-    case 16:
-        return x % 16;
-    case 10:
-        return x % 10;
-    default:
-        return 0;
-    }
-}
-
-seL4_Uint32
-print_seL4_Uint32(seL4_Uint32 x, seL4_Uint32 ui_base)
-{
-    char out[11];
-    seL4_Uint32 i, j;
-    seL4_Uint32 d;
-
-    /*
-     * Only base 10 and 16 supported for now. We want to avoid invoking the
-     * compiler's support libraries through doing arbitrary divisions.
-     */
-    if (ui_base != 10 && ui_base != 16) {
-        return 0;
-    }
-
-    if (x == 0) {
-        seL4_PutChar('0');
-        return 1;
-    }
-
-    for (i = 0; x; x = xdiv(x, ui_base), i++) {
-        d = xmod(x, ui_base);
-
-        if (d >= 10) {
-            out[i] = 'a' + d - 10;
-        } else {
-            out[i] = '0' + d;
-        }
-    }
-
-    for (j = i; j > 0; j--) {
-        seL4_PutChar(out[j - 1]);
-    }
-
-    return i;
-}
-
-
-static seL4_Uint32
-print_seL4_Uint64(seL4_Uint64 x, seL4_Uint32 ui_base)
-{
-    seL4_Uint32 upper, lower;
-    seL4_Uint32 n = 0;
-    seL4_Uint32 mask = 0xF0000000u;
-
-    /* only implemented for hex, decimal is harder without 64 bit division */
-    if (ui_base != 16) {
-        return 0;
-    }
-
-    /* we can't do 64 bit division so break it up into two hex numbers */
-    upper = (seL4_Uint32) (x >> 32llu);
-    lower = (seL4_Uint32) x;
-
-    /* print first 32 bits if they exist */
-    if (upper > 0) {
-        n += print_seL4_Uint32(upper, ui_base);
-
-        /* print leading 0s */
-        while (!(mask & lower)) {
-            seL4_PutChar('0');
-            n++;
-            mask = mask >> 4;
-        }
-    }
-
-    /* print last 32 bits */
-    n += print_seL4_Uint32(lower, ui_base);
-
-    return n;
-}
-
-
-static int
-vprintf(const char *format, seL4_VaList ap)
-{
-    seL4_Uint32 n;
-    seL4_Uint32 formatting;
-
-    if (!format) {
-        return 0;
-    }
-
-    n = 0;
-    formatting = 0;
-    while (*format) {
-        if (formatting) {
-            switch (*format) {
-            case '%':
-                seL4_PutChar('%');
-                n++;
-                format++;
-                break;
-
-            case 'd': {
-                int x = seL4_VaArg(ap, int);
-
-                if (x < 0) {
-                    seL4_PutChar('-');
-                    n++;
-                    x = -x;
-                }
-
-                n += print_seL4_Uint32((seL4_Uint32)x, 10);
-                format++;
-                break;
-            }
-
-            case 'u':
-                n += print_seL4_Uint32(seL4_VaArg(ap, seL4_Uint32), 10);
-                format++;
-                break;
-
-            case 'x':
-                n += print_seL4_Uint32(seL4_VaArg(ap, seL4_Uint32), 16);
-                format++;
-                break;
-
-            case 'p': {
-                seL4_Uint32 p = seL4_VaArg(ap, seL4_Uint32);
-                if (p == 0) {
-                    n += print_string("(nil)");
-                } else {
-                    n += print_string("0x");
-                    n += print_seL4_Uint32(p, 16);
-                }
-                format++;
-                break;
-            }
-
-            case 's':
-                n += print_string(seL4_VaArg(ap, char *));
-                format++;
-                break;
-
-            case 'l':
-		// Support llx only
-                if (*(format + 1) == 'l' && *(format + 2) == 'x') {
-                    seL4_Uint64 arg = seL4_VaArg(ap, seL4_Uint64);
-                    n += print_seL4_Uint64(arg, 16);
-                    format += 3;
-                }
-                break;
-            default:
-                format++;
-                break;
-            }
-
-            formatting = 0;
-        } else {
-            switch (*format) {
-            case '%':
-                formatting = 1;
-                format++;
-                break;
-
-            default:
-                seL4_PutChar(*format);
-                n++;
-                format++;
-                break;
-            }
-        }
-    }
-
-    return n;
+/**
+ * Write a character using seL4_PutChar
+ */
+static void writeChar(seL4_Writer* this, void* param) {
+    (void)(this);
+    seL4_PutChar((char)(((int)param) & 0xff));
 }
 
 /**
- * Print a formated string to a "terminal". This supports a
+ * Output a string
+ */
+static seL4_Uint32
+writeStr(seL4_Writer *writer, char *str) {
+    seL4_Uint32 count = 0;
+    char c;
+
+    while((c = *str++)) {
+        writer->write(writer, WRITE_PARAM(c));
+        count += 1;
+    }
+
+    return count;
+}
+
+/**
+ * Output an unsigned 32 bit value
+ */
+static seL4_Uint32
+writeUint32(seL4_Writer* writer, seL4_Uint32 val, seL4_Bool radix16Leading0, seL4_Uint32 radix) {
+    static const char valToChar[] = "0123456789ABCDEF";
+    seL4_Uint32 count = 0;
+    char result[32];
+
+    // Must support radix 10
+    seL4_DebugAssert(sizeof(valToChar) >= 10);
+
+    // Check that we can support binary output
+    seL4_DebugAssert(sizeof(result) >= 32);
+
+    // Validate radix
+    if ((radix <= 1) || (radix > sizeof(valToChar))) {
+        count = writeStr(writer, "Bad Radix ");
+        count += writeUint32(writer, radix, NO_LEADING_0, 10);
+    } else {
+        seL4_Int32 idx;
+        for (idx = 0; idx < sizeof(result); idx++) {
+            result[idx] = valToChar[val % radix];
+            val /= radix;
+            if (val == 0) {
+                break;
+            }
+        }
+        count = idx + 1;
+        if ((radix == 16) && radix16Leading0) {
+            seL4_Int32 pad0Count = sizeof(val) - count;
+            count += pad0Count;
+            while (pad0Count-- > 0) {
+                writer->write(writer, WRITE_PARAM('0'));
+            }
+        }
+        for (; idx >= 0; idx--) {
+            writer->write(writer, WRITE_PARAM(result[idx]));
+        }
+    }
+    return count;
+}
+
+/**
+ * Output an unsigned 64 bit value
+ */
+static seL4_Uint32
+writeUint64_Radix16(seL4_Writer* writer, seL4_Uint64 val, seL4_Bool radix16Leading0) {
+    seL4_Uint32 count = 0;
+    seL4_Uint32 upper = (val >> 32) & 0xFFFFFFFF;
+    seL4_Uint32 lower = val & 0xFFFFFFFF;
+    if ((upper > 0) || radix16Leading0) {
+        count = writeUint32(writer, upper, radix16Leading0, 16);
+        count += writeUint32(writer, lower, RADIX16_LEADING_0, 16);
+    } else {
+        count += writeUint32(writer, lower, radix16Leading0, 16);
+    }
+    return count;
+}
+
+
+/**
+ * Output a signed 32 bit value
+ */
+static seL4_Uint32
+writeInt32(seL4_Writer* writer, seL4_Int32 val, seL4_Uint32 radix) {
+    seL4_Uint32 count = 0;
+    if ((val < 0) && (radix == 10)) {
+        writer->write(writer, WRITE_PARAM('-'));
+        count += 1;
+        val = -val;
+    }
+    return count + writeUint32(writer, val, NO_LEADING_0, radix);
+}
+
+/**
+ * Print a formatted string to the writer function. This supports a
+ * subset of the typical libc printf:
+ *   - %% ::= prints a percent
+ *   - %d ::= prints a positive or negative long base 10
+ *   - %u ::= prints an seL4_Uint32 base 10
+ *   - %x ::= prints a seL4_Uint32 base 16
+ *   - %p ::= prints a seL4_Uint32 assuming its a pointer base 16 with 0x prepended
+ *   - %s ::= prints a string
+ *   - %llx ::= prints a seL4_Uint64 base 16
+ *
+ * Returns number of characters consumed
+ */
+seL4_Uint32
+seL4_Formatter(seL4_Writer* writer, const char* format, seL4_VaList args) {
+    seL4_Uint32 count = 0;
+
+    // Check inputs
+    if (format == seL4_Null || args == seL4_Null || writer == seL4_Null) {
+        goto done;
+    }
+
+    char c;
+    while ((c = *format++) != 0) {
+        if (c != '%') {
+            // Not the format escape character
+            writer->write(writer, WRITE_PARAM(c));
+            count += 1;
+        } else {
+            // Is a '%' so get the next character to decide the format
+            char nextC = *format++;
+            if (nextC == 0) {
+                count += 1;
+                goto done;
+            }
+            switch (nextC) {
+                case '%': {
+                    // was %% just echo a '%'
+                    writer->write(writer, WRITE_PARAM(nextC));
+                    count += 1;
+                    break;
+                }
+                case 's': {
+                    // Handle string specifier
+                    char *s = seL4_VaArg(args, char *);
+                    count += writeStr(writer, s);
+                    break;
+                }
+                case 'b': {
+                    count += writeUint32(writer, seL4_VaArg(args, seL4_Int32), NO_LEADING_0, 2);
+                    break;
+                }
+                case 'd': {
+                    count += writeInt32(writer, seL4_VaArg(args, seL4_Int32), 10);
+                    break;
+                }
+                case 'u': {
+                    count += writeUint32(writer, seL4_VaArg(args, seL4_Uint32), NO_LEADING_0, 10);
+                    break;
+                }
+                case 'x': {
+                    count += writeUint32(writer, seL4_VaArg(args, seL4_Uint32), NO_LEADING_0, 16);
+                    break;
+                }
+                case 'l': {
+                    if (seL4_StrNCmp("lx", format, 2) == 0) {
+                        format += 2;
+                        count += writeUint64_Radix16(writer, seL4_VaArg(args, seL4_Uint64), NO_LEADING_0);
+                    } else {
+                        count += writeStr(writer, "%l");
+                    }
+                    break;
+                }
+                case 'p': {
+                    seL4_Uint32 sizePtr = sizeof(void *);
+                    switch (sizePtr) {
+                        case sizeof(seL4_Uint32): {
+                            count += writeUint32(writer, seL4_VaArg(args, seL4_Uint32), RADIX16_LEADING_0, 16);
+                            break;
+                        }
+                        case sizeof(seL4_Uint64): {
+                            count += writeUint64_Radix16(writer, seL4_VaArg(args, seL4_Uint64), RADIX16_LEADING_0);
+
+                            break;
+                        }
+                        default: {
+                            writeStr(writer, "Bad ptr size:");
+                            writeUint32(writer, sizePtr, 10, NO_LEADING_0);
+                            break;
+                        }
+                    }
+                    break;
+                }
+                default: {
+                    writer->write(writer, WRITE_PARAM(c));
+                    writer->write(writer, WRITE_PARAM(nextC));
+                    count += 1;
+                    break;
+                }
+            }
+        }
+    }
+
+done:
+    return count;
+}
+
+/**
+ * Print a formatted string to the writer. This supports a
  * subset of the typical libc printf:
  *   - %% ::= prints a percent
  *   - %d ::= prints a positive or negative long base 10
@@ -229,15 +232,45 @@ vprintf(const char *format, seL4_VaList ap)
  *   - %p ::= prints a seL4_Uint32 assuming its a pointer base 16 with 0x prepended
  *   - %s ::= prints a string
  *   - %llx ::= prints a seL4_Uint32 long base 16
+ *
+ * Returns number of characters printed
  */
 seL4_Uint32
-seL4_Printf(const char *format, ...)
-{
+seL4_WPrintf(seL4_Writer* writer, const char *format, ...) {
     seL4_VaList args;
-    seL4_Uint32 i;
+    seL4_Uint32 count;
 
     seL4_VaStart(args, format);
-    i = vprintf(format, args);
+    count = seL4_Formatter(writer, format, args);
     seL4_VaEnd(args);
-    return i;
+    return count;
 }
+
+/**
+ * Print a formatted string to seL4_PutChar. This supports a
+ * subset of the typical libc printf:
+ *   - %% ::= prints a percent
+ *   - %d ::= prints a positive or negative long base 10
+ *   - %u ::= prints an seL4_Uint32 base 10
+ *   - %x ::= prints a seL4_Uint32 base 16
+ *   - %p ::= prints a seL4_Uint32 assuming its a pointer base 16 with 0x prepended
+ *   - %s ::= prints a string
+ *   - %llx ::= prints a seL4_Uint32 long base 16
+ *
+ * Returns number of characters printed
+ */
+seL4_Uint32
+seL4_Printf(const char *format, ...) {
+    seL4_VaList args;
+    seL4_Uint32 count;
+    seL4_Writer writer = {
+            .write = writeChar,
+            .data = seL4_Null,
+    };
+
+    seL4_VaStart(args, format);
+    count = seL4_Formatter(&writer, format, args);
+    seL4_VaEnd(args);
+    return count;
+}
+

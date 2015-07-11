@@ -11,7 +11,10 @@
 
 #ifdef NDEBUG
 
-/** NOP printf as NDEBUG is defined */
+/** NOP seL4_DebugWPrintf as NDEBUG is defined */
+#define seL4_DebugWPrintf(...) ((void)(0))
+
+/** NOP seL4_DebugPrintf as NDEBUG is defined */
 #define seL4_DebugPrintf(...) ((void)(0))
 
 #else
@@ -19,7 +22,22 @@
 #include <sel4/printf.h>
 
 /**
- * Print a formated string to a "terminal". This supports a
+ * Print a formatted string to the writer. This supports a
+ * subset of the typical libc printf:
+ *   - %% ::= prints a percent
+ *   - %d ::= prints a positive or negative long base 10
+ *   - %u ::= prints an seL4_Uint32 base 10
+ *   - %x ::= prints a seL4_Uint32 base 16
+ *   - %p ::= prints a seL4_Uint32 assuming its a pointer base 16 with 0x prepended
+ *   - %s ::= prints a string
+ *   - %llx ::= prints a seL4_Uint32 long base 16
+ *
+ * Returns number of characters printed
+ */
+#define seL4_DebugWPrintf(writer, ...) seL4_Printf(writer, __VA_ARGS__)
+
+/**
+ * Print a formatted string to a "terminal". This supports a
  * subset of the typical libc printf:
  *   - %% ::= prints a percent
  *   - %d ::= prints a positive or negative long base 10
