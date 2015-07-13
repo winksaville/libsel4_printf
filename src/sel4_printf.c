@@ -33,7 +33,7 @@ writeStr(seL4_Writer *writer, char *str) {
     char c;
 
     while((c = *str++)) {
-        writer->write(writer, WRITE_PARAM(c));
+        writer->writeParam(writer, WRITE_PARAM(c));
         count += 1;
     }
 
@@ -45,7 +45,7 @@ writeStr(seL4_Writer *writer, char *str) {
  */
 static seL4_Uint32
 writeUint32(seL4_Writer* writer, seL4_Uint32 val, seL4_Bool radix16Leading0, seL4_Uint32 radix) {
-    static const char valToChar[] = "0123456789ABCDEF";
+    static const char valToChar[] = "0123456789abcdef";
     seL4_Uint32 count = 0;
     char result[32];
 
@@ -70,14 +70,14 @@ writeUint32(seL4_Writer* writer, seL4_Uint32 val, seL4_Bool radix16Leading0, seL
         }
         count = idx + 1;
         if ((radix == 16) && radix16Leading0) {
-            seL4_Int32 pad0Count = sizeof(val) - count;
+            seL4_Int32 pad0Count = (sizeof(val) * 2) - count;
             count += pad0Count;
             while (pad0Count-- > 0) {
-                writer->write(writer, WRITE_PARAM('0'));
+                writer->writeParam(writer, WRITE_PARAM('0'));
             }
         }
         for (; idx >= 0; idx--) {
-            writer->write(writer, WRITE_PARAM(result[idx]));
+            writer->writeParam(writer, WRITE_PARAM(result[idx]));
         }
     }
     return count;
@@ -91,7 +91,7 @@ writeUint64_Radix16(seL4_Writer* writer, seL4_Uint64 val, seL4_Bool radix16Leadi
     seL4_Uint32 count = 0;
     seL4_Uint32 upper = (val >> 32) & 0xFFFFFFFF;
     seL4_Uint32 lower = val & 0xFFFFFFFF;
-    if ((upper > 0) || radix16Leading0) {
+    if ((upper != 0) || radix16Leading0) {
         count = writeUint32(writer, upper, radix16Leading0, 16);
         count += writeUint32(writer, lower, RADIX16_LEADING_0, 16);
     } else {
@@ -108,7 +108,7 @@ static seL4_Uint32
 writeInt32(seL4_Writer* writer, seL4_Int32 val, seL4_Uint32 radix) {
     seL4_Uint32 count = 0;
     if ((val < 0) && (radix == 10)) {
-        writer->write(writer, WRITE_PARAM('-'));
+        writer->writeParam(writer, WRITE_PARAM('-'));
         count += 1;
         val = -val;
     }
@@ -137,11 +137,14 @@ seL4_Formatter(seL4_Writer* writer, const char* format, seL4_VaList args) {
         goto done;
     }
 
+    if (writer->writeBeg != seL4_Null) {
+        writer->writeBeg(writer);
+    }
     char c;
     while ((c = *format++) != 0) {
         if (c != '%') {
             // Not the format escape character
-            writer->write(writer, WRITE_PARAM(c));
+            writer->writeParam(writer, WRITE_PARAM(c));
             count += 1;
         } else {
             // Is a '%' so get the next character to decide the format
@@ -153,7 +156,7 @@ seL4_Formatter(seL4_Writer* writer, const char* format, seL4_VaList args) {
             switch (nextC) {
                 case '%': {
                     // was %% just echo a '%'
-                    writer->write(writer, WRITE_PARAM(nextC));
+                    writer->writeParam(writer, WRITE_PARAM(nextC));
                     count += 1;
                     break;
                 }
@@ -209,13 +212,16 @@ seL4_Formatter(seL4_Writer* writer, const char* format, seL4_VaList args) {
                     break;
                 }
                 default: {
-                    writer->write(writer, WRITE_PARAM(c));
-                    writer->write(writer, WRITE_PARAM(nextC));
+                    writer->writeParam(writer, WRITE_PARAM(c));
+                    writer->writeParam(writer, WRITE_PARAM(nextC));
                     count += 1;
                     break;
                 }
             }
         }
+    }
+    if (writer->writeEnd != seL4_Null) {
+        writer->writeEnd(writer);
     }
 
 done:
@@ -264,7 +270,9 @@ seL4_Printf(const char *format, ...) {
     seL4_VaList args;
     seL4_Uint32 count;
     seL4_Writer writer = {
-            .write = writeChar,
+            .writeBeg = seL4_Null,
+            .writeParam = writeChar,
+            .writeEnd = seL4_Null,
             .data = seL4_Null,
     };
 

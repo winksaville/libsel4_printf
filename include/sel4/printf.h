@@ -17,15 +17,23 @@
 // Forward declaration of the seL4_Writer typedef
 typedef struct _seL4_Writer seL4_Writer;
 
+// A function called before first WriteParam is called
+typedef void (*seL4_WriteBeg_fn)(seL4_Writer* this);
+
 // A function to Write the parameter to the seL4_Writer
-typedef void (*seL4_Write_fn)(seL4_Writer* this, void* param);
+typedef void (*seL4_WriteParam_fn)(seL4_Writer* this, void* param);
+
+// A function called after all WriteParam's have been called
+typedef void (*seL4_WriteEnd_fn)(seL4_Writer* this);
 
 /**
  * An seL4_Writer which has a function that processes the parameter
  * using any information needed in the seL4_Writer.
  */
 typedef struct _seL4_Writer {
-    seL4_Write_fn write;    // The function which is passed an seL4_Writer
+    seL4_WriteEnd_fn writeBeg;      // Called before first writeParam, optional maybe seL4_Null
+    seL4_WriteParam_fn writeParam;  // Called to write the parameter
+    seL4_WriteEnd_fn writeEnd;      // Called after last writeParam, optional maybe seL4_Null
     void* data;             // Typically a pointer to the writers control data
 } seL4_Writer;
 
